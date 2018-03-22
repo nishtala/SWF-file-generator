@@ -25,7 +25,6 @@ typedef struct job_trace {
     int  duration;
     int  wclimit;
     int  tasks;
-    int  maxrss;
     char qosname[MAX_QOSNAME];
     char partition[MAX_QOSNAME];
     char account[MAX_QOSNAME];
@@ -34,6 +33,7 @@ typedef struct job_trace {
     char reservation[MAX_RSVNAME];
     char dependency[MAX_DEPNAME];
     struct job_trace *next;
+    int  maxrss;
     char manifest_filename[MAX_WF_FILENAME_LEN];
     char *manifest;
 } job_trace_t;
@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
 {
     int i;
     int idx=0, errs=0;
-    int nrecs=1000; // Number of records has to be entered here each time. This should be done differently.
+    int nrecs=31; // Number of records has to be entered here each time. This should be done differently.
     job_trace_t* job_trace,* job_trace_head,* job_arr,* job_ptr;
     char const* const fileName = argv[1]; /* should check that argc > 1 */
     FILE* file = fopen(fileName, "r"); /* should check the result */
@@ -63,16 +63,21 @@ int main(int argc, char* argv[])
         /* note that fgets don't strip the terminating \n, checking its
            presence would allow to handle lines longer that sizeof(line) */
         printf("%s", line);
-        p = strtok(line, " \t");
-	i=0;
+        p = strtok(line, "\t");
+        i=0;
         while(p!=NULL){
             //WRITE_HERE
-            else printf(" %s\n", p);
-            
-            
-            p = strtok(NULL," \t");
+            else printf(" Not added to struct: %s\n", p);
+		//if(i==11) { printf("%s", p); strcpy(job_arr[idx].username, p); }   
+            //if(i==12) { printf("%s", p); strcpy(job_arr[idx].account, p); }   
+            //if(i==15) { printf("%s", p); strcpy(job_arr[idx].partition, p); }   
+            p = strtok(NULL,"\t");
             i++; 
         }
+        // assuming pure MPI application; for threaded one we will have to do it differently.
+        //job_arr[idx].cpus_per_task = 1;
+        //if(job_arr[idx].tasks < CPUS_PER_NODE) job_arr[idx].tasks_per_node = job_arr[idx].tasks; 
+        //else job_arr[idx].tasks_per_node = CPUS_PER_NODE;
 
         //assuming one task per node, and as many threads as CPUs per node
         job_arr[idx].cpus_per_task = CPUS_PER_NODE;
@@ -82,6 +87,8 @@ int main(int argc, char* argv[])
         strcpy(job_arr[idx].username, "tester");
         strcpy(job_arr[idx].partition, "normal");
         strcpy(job_arr[idx].account, "1000");
+        //strcpy(job_trace->manifest_filename, "|\0");
+        //job_trace->manifest=NULL; 
         idx++;
     }
     /* may check feof here to make a difference between eof and io failure -- network

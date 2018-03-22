@@ -23,8 +23,19 @@ def call_command(command):
     return commands.getstatusoutput(command)[1].strip()
 
 class CurateSacct:
+    #Job_ID _       _       _        SubmitTime Ntasks WallClock    StartTime   EndTime     Status
+    #   *   *   synthetic   fixed   4609            4   21865       4609        9111        completed
     def __init__(self, job_id):
         self.job_id = str(job_id)
+
+    def synthetic(self):
+        return "synthetic"
+    def status(self):
+        return "completed"
+    def fixed(self):
+        return "fixed"
+    def asterix(self):
+        return "*"
     def job_name(self):
         command='sacct -n --format=jobname%60 -j ' + self.job_id + '.batch'
         return call_command(command)
@@ -61,7 +72,7 @@ class CurateSacct:
         return self.time_in_sec(value, True)
 
 class Generate_SWF:
-    def __init__(self, JOB_NAME, MAX_RSS, NTASKS, START_TIME, END_TIME, SUBMIT_TIME, ELAPSED_TIME, TRACE):
+    def __init__(self, JOB_NAME, MAX_RSS, NTASKS, START_TIME, END_TIME, SUBMIT_TIME, ELAPSED_TIME, TRACE, ASTERIX, FIXED, STATUS, SYNTHETIC):
         #basic parameters
         self.trace       = TRACE
         self.ntasks      = NTASKS
@@ -73,19 +84,25 @@ class Generate_SWF:
         self.delimiter   = '\t'
         self.index       = '*'
         self.basename    = '.swf'
+        self.asterix     = ASTERIX
+        self.fixed       = FIXED
+        self.status      = STATUS
+        self.synthetic   = SYNTHETIC
 
     def join_as_list(self):
+        #header   = ['index',   'ntasks'    ,   'wc_time',     'start_time', 'end_time'   , 'submit_time'   , 'max_rss']
         to_write = list()
         header = list()
-        header   = ['index',   'ntasks'    ,   'wc_time',     'start_time', 'end_time'   , 'submit_time'   , 'max_rss']
-        to_write = [self.index, self.ntasks, self.wc_time, self.start_time, self.end_time, self.submit_time, self.max_rss]
+                 #      *                   *             synthetic         fixed   4609            4               21865       4609        9111        completed
+        header    = ['index',           'asterix',   'synthetic',     'fixed', 'submit_time', 'ntasks',       'wc_time', 'start_time', 'end_time', 'status', 'max_rss']
+        to_write  = [self.asterix, self.asterix,  self.synthetic, self.fixed, self.submit_time, self.ntasks, self.wc_time, self.start_time, self.end_time, self.status, self.max_rss]
         return header, to_write
 
     def write_to_file(self, this_job):
         with open(self.trace + self.basename, 'a+') as swf_file:
-            for l in this_job:
-                swf_file.write(l + self.delimiter)
-            swf_file.write('\n')
+            for l in range(len(this_job)-1):
+                swf_file.write(this_job[l] + self.delimiter)
+            swf_file.write(this_job[-1] + '\n')
 
 class Generate_Cprog:
     def __init__(self, header, trace_name):
@@ -101,18 +118,18 @@ class Generate_Cprog:
         return base_if
 
     def end_if(self):
-        return '}'
+        return ' }'
 
     def job_arr(self):
         job_array = 'job_arr[idx]'
         return job_array
 
     def print_statement(self, base_string, value):
-        to_print = 'printf("' + str(base_string) + r' : %s\n",' + str(value) + ');'
+        to_print = ' printf("' + str(base_string) + r': %s\n", ' + str(value) + ');'
         return to_print
 
     def int_print_statement(self, base_string, value):
-        to_print = 'printf("' + str(base_string) + r' : %d\n",' + str(value) + ');'
+        to_print = ' printf("' + str(base_string) + r': %d\n", ' + str(value) + ');'
         return to_print
 
     def parse_header(self):
@@ -122,61 +139,60 @@ class Generate_Cprog:
             if head == 'index':
                 in_file.append(self.start_if(idx))
                 ja = self.job_arr()
-                ja = ja + '.job_id = ++job_index;'
+                ja = " " + ja + '.job_id = ++job_index;'
                 in_file.append(ja)
-                in_file.append(self.int_print_statement("Index", "job_index"))
+                in_file.append(self.int_print_statement("Index is", "job_index"))
                 in_file.append(self.end_if())
             elif head == 'ntasks':
                 in_file.append(self.else_if(idx))
                 ja = self.job_arr()
-                ja = ja + '.tasks = atoi(p);'
+                in_file.append(self.print_statement("Ntasks/nodes","p"))
+                ja = " " + ja + '.tasks = atoi(p);'
                 in_file.append(ja)
-                in_file.append(self.print_statement("Ntasks","p"))
                 in_file.append(self.end_if())
             elif head == 'wc_time':
                 in_file.append(self.else_if(idx))
                 ja = self.job_arr()
-                ja = ja + '.wclimit = ceil((double)atoi(p)/60);'
+                in_file.append(self.print_statement("Wallclock limit","p"))
+                ja = " " + ja + '.wclimit = ceil((double)atoi(p)/60);'
                 in_file.append(ja)
-                in_file.append(self.print_statement("Wallclock_limit","p"))
                 in_file.append(self.end_if())
             elif head == 'start_time':
                 in_file.append(self.else_if(idx))
-                ja = 'start_time = atoi(p);'
+                in_file.append(self.print_statement("Startime","p"))
+                ja = " " + 'start_time = atoi(p);'
                 in_file.append(ja)
-                in_file.append(self.print_statement("Start_time","p"))
                 in_file.append(self.end_if())
             elif head == 'end_time':
                 in_file.append(self.else_if(idx))
-                in_file.append(self.print_statement("End_time","p"))
+                in_file.append(self.print_statement("End time","p"))
                 ja = self.job_arr()
-                ja = ja + '.duration = atoi(p) - start_time;'
+                ja = " "  + ja + '.duration = atoi(p) - start_time;'
                 in_file.append(ja)
                 in_file.append(self.int_print_statement("Duration","job_arr[idx].duration"))
                 in_file.append(self.end_if())
             elif head == 'submit_time':
                 in_file.append(self.else_if(idx))
-                in_file.append(self.print_statement("Submit_time","p"))
-                in_file.append('if (first_arrival == 0) {')
+                in_file.append(self.print_statement("Submit time","p"))
+                in_file.append(' if (first_arrival == 0) ')
                 ja = self.job_arr()
-                ja = ja + '.submit = 100 + atoi(p) - first_arrival;'
+                ja = " " + ja + '.submit = 100 + atoi(p) - first_arrival;'
                 in_file.append('first_arrival = atoi(p);')
                 in_file.append(ja)
-                in_file.append(self.end_if())
                 in_file.append(self.end_if())
             elif head == 'max_rss':
                 in_file.append(self.else_if(idx))
                 ja = self.job_arr()
-                ja = ja + '.maxrss = atoi(p);'
+                ja = " " + ja + '.maxrss = atoi(p);'
                 in_file.append(ja)
                 in_file.append(self.print_statement("max_rss","p"))
                 in_file.append(self.end_if())
             else:
-                exit('cannot continue as header %s not found', head)
+                print ('header %s not found', head)
         return in_file
 
     def write_to_file(self, in_file):
-        file_to_write = '/gpfs/scratch/bsc15/bsc15755/SIMULATOR_SLURM/create_swf_files/template.c'
+        file_to_write = 'PATH TO TEMPLATE'
         if not file_exists(file_to_write): exit('Ooops template file not found')
         if file_exists(self.file_name):
             print ("deleting old file: "  + self.file_name)
@@ -187,7 +203,10 @@ class Generate_Cprog:
             for line in lines:
                 if '//WRITE_HERE' in line:
                     for inp in in_file:
-                        f.write('\t\t'+ inp+'\n')
+                        if "}" in inp:
+                            f.write(''+ inp+'\n')
+                        else:
+                            f.write(''+ inp)
                 else:
                     f.write(line)
 
@@ -201,7 +220,11 @@ def multiprocess_em(CJOB_ID):
     END_TIME     = CS.end_time()
     SUBMIT_TIME  = CS.submit_time()
     ELAPSED_TIME = CS.elapsed_time()
-    swf = Generate_SWF(JOB_NAME, MAX_RSS, NTASKS, START_TIME, END_TIME, SUBMIT_TIME, ELAPSED_TIME, args.trace)
+    ASTERIX      = CS.asterix()
+    FIXED        = CS.fixed()
+    STATUS       = CS.status()
+    SYNTHETIC     = CS.synthetic()
+    swf = Generate_SWF(JOB_NAME, MAX_RSS, NTASKS, START_TIME, END_TIME, SUBMIT_TIME, ELAPSED_TIME, args.trace, ASTERIX, FIXED, STATUS, SYNTHETIC)
     header, this_job = swf.join_as_list()
     swf.write_to_file(this_job)
     return header
@@ -213,7 +236,6 @@ if __name__ == '__main__':
     parser.add_argument('--generate'    , help='generate c file', action='store_true')
     args = parser.parse_args()
 
-    #MAIN_PATH = '/gpfs/scratch/bsc15/bsc15755/BENCHMARKS/results_without_contention/medium/blackscholes/'
     MAIN_PATH = args.basepath
     COMMAND   = 'grep "Final" ' + MAIN_PATH + '/*.out -l'
     JOB_IDS = list(commands.getstatusoutput(COMMAND)[1:])[0].split("\n")
@@ -235,4 +257,4 @@ if __name__ == '__main__':
         print ("generating trace file")
         trace_f = './swf2trace_' + args.trace +  ' ' + args.trace + '.swf'
         system(trace_f)
-        print ("copy *.c and binary to: /gpfs/scratch/bsc15/bsc15755/SIMULATOR_SLURM/slurm/contribs/simulator/")
+        print ("copy *.c and binary to: sim path")
