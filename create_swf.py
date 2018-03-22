@@ -169,14 +169,22 @@ class Generate_Cprog:
                 ja = self.job_arr()
                 ja = ja + '.maxrss = atoi(p);'
                 in_file.append(ja)
+<<<<<<< HEAD
                 in_file.append(self.print_statement("max_rss","p"))
+=======
+                in_file.append(self.print_statement("Start_time","p"))
+>>>>>>> fc8eb9877538c4ef8a582695f3c268feb4de634c
                 in_file.append(self.end_if())
             else:
                 exit('cannot continue as header %s not found', head)
         return in_file
 
     def write_to_file(self, in_file):
+<<<<<<< HEAD
         file_to_write = '/gpfs/scratch/bsc15/bsc15755/SIMULATOR_SLURM/create_swf_files/template.c'
+=======
+        file_to_write = 'PATH TO TEMPLATE'
+>>>>>>> fc8eb9877538c4ef8a582695f3c268feb4de634c
         if not file_exists(file_to_write): exit('Ooops template file not found')
         if file_exists(self.file_name):
             print ("deleting old file: "  + self.file_name)
@@ -213,7 +221,10 @@ if __name__ == '__main__':
     parser.add_argument('--generate'    , help='generate c file', action='store_true')
     args = parser.parse_args()
 
+<<<<<<< HEAD
     #MAIN_PATH = '/gpfs/scratch/bsc15/bsc15755/BENCHMARKS/results_without_contention/medium/blackscholes/'
+=======
+>>>>>>> fc8eb9877538c4ef8a582695f3c268feb4de634c
     MAIN_PATH = args.basepath
     COMMAND   = 'grep "Final" ' + MAIN_PATH + '/*.out -l'
     JOB_IDS = list(commands.getstatusoutput(COMMAND)[1:])[0].split("\n")
@@ -223,6 +234,7 @@ if __name__ == '__main__':
     #    multiprocess_em(CJOB_ID)
     header = header[0]
     if args.generate:
+<<<<<<< HEAD
         binary_name = 'swf2trace_' + args.trace
         if file_exists(binary_name):
             print ("removing old binary")
@@ -236,3 +248,10 @@ if __name__ == '__main__':
         trace_f = './swf2trace_' + args.trace +  ' ' + args.trace + '.swf'
         system(trace_f)
         print ("copy *.c and binary to: /gpfs/scratch/bsc15/bsc15755/SIMULATOR_SLURM/slurm/contribs/simulator/")
+=======
+        cprog    = Generate_Cprog(header, args.trace)
+        in_file  = cprog.parse_header()
+        cprog.write_to_file(in_file)
+        compile_bin = 'gcc swf2trace_' + args.trace + '.c -lm -o swf2trace_' + args.trace
+    system(compile_bin)
+>>>>>>> fc8eb9877538c4ef8a582695f3c268feb4de634c
